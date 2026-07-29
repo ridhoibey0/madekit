@@ -5,6 +5,7 @@ const listEl = document.getElementById("list");
 const summaryEl = document.getElementById("summary");
 const fakultasListEl = document.getElementById("fakultas-list");
 const paketListEl = document.getElementById("paket-list");
+const matrixWrapEl = document.getElementById("matrix-wrap");
 const searchEl = document.getElementById("search");
 const filterFakultasEl = document.getElementById("filterFakultas");
 const filterStatusEl = document.getElementById("filterStatus");
@@ -146,6 +147,8 @@ function renderDashboard() {
     <div class="stat"><b>${formatRupiah(refundTotalNominal)}</b><span>Total nominal refund</span></div>
   `;
 
+  renderMatrix();
+
   const byPaket = new Map();
   for (const item of allItems) {
     const key = item.paket || "Satuan";
@@ -189,6 +192,69 @@ function renderDashboard() {
       </tr>`
     )
     .join("");
+}
+
+function renderMatrix() {
+  const paketSet = new Set(allItems.map((i) => i.paket || "Satuan"));
+  const paketCols = [...paketSet].sort((a, b) => a.localeCompare(b));
+  const fakultasSet = new Set(allItems.map((i) => i.fakultas || "(kosong)"));
+  const fakultasRows = [...fakultasSet].sort((a, b) => a.localeCompare(b));
+
+  // pivot[fakultas][paket] = { total, sisa }
+  const pivot = new Map();
+  for (const item of allItems) {
+    const f = item.fakultas || "(kosong)";
+    const p = item.paket || "Satuan";
+    if (!pivot.has(f)) pivot.set(f, new Map());
+    const row = pivot.get(f);
+    if (!row.has(p)) row.set(p, { total: 0, sisa: 0 });
+    const cell = row.get(p);
+    cell.total++;
+    if (!item.sudahAmbil) cell.sisa++;
+  }
+
+  const cellHtml = (sisa, total) =>
+    total === 0
+      ? `<td class="matrix-cell-zero">–</td>`
+      : sisa === 0
+      ? `<td class="matrix-cell-zero">0</td>`
+      : `<td>${sisa}</td>`;
+
+  const headerRow = `<tr><th>Fakultas</th>${paketCols
+    .map((p) => `<th>${p}</th>`)
+    .join("")}<th class="total-col">Total</th></tr>`;
+
+  const bodyRows = fakultasRows
+    .map((f) => {
+      const row = pivot.get(f) || new Map();
+      let rowSisa = 0;
+      const cells = paketCols
+        .map((p) => {
+          const cell = row.get(p) || { total: 0, sisa: 0 };
+          rowSisa += cell.sisa;
+          return cellHtml(cell.sisa, cell.total);
+        })
+        .join("");
+      return `<tr><td>${f}</td>${cells}<td class="total-col">${rowSisa}</td></tr>`;
+    })
+    .join("");
+
+  const colTotals = paketCols.map((p) => {
+    let sum = 0;
+    for (const f of fakultasRows) sum += (pivot.get(f)?.get(p)?.sisa) || 0;
+    return sum;
+  });
+  const grandTotal = colTotals.reduce((a, b) => a + b, 0);
+  const totalRow = `<tr class="total-row"><td>Total</td>${colTotals
+    .map((s) => `<td>${s}</td>`)
+    .join("")}<td class="total-col">${grandTotal}</td></tr>`;
+
+  matrixWrapEl.innerHTML = `
+    <table class="matrix-table">
+      <thead>${headerRow}</thead>
+      <tbody>${bodyRows}${totalRow}</tbody>
+    </table>
+  `;
 }
 
 // ---------- table + filters ----------

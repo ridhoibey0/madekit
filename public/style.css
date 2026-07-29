@@ -81,6 +81,58 @@ main {
   margin: 0 0 10px;
   color: #374151;
 }
+.panel-hint {
+  font-size: 11px;
+  color: #9ca3af;
+  margin: -6px 0 10px;
+}
+
+/* ---------- matrix (fakultas x paket) ---------- */
+.matrix-wrap {
+  overflow-x: auto;
+  -webkit-overflow-scrolling: touch;
+  border: 1px solid #f0f0f0;
+  border-radius: 6px;
+}
+.matrix-table {
+  border-collapse: collapse;
+  width: 100%;
+  font-size: 12px;
+  white-space: nowrap;
+}
+.matrix-table th, .matrix-table td {
+  padding: 6px 10px;
+  text-align: center;
+  border-bottom: 1px solid #f0f0f0;
+  border-left: 1px solid #f0f0f0;
+}
+.matrix-table th:first-child, .matrix-table td:first-child {
+  text-align: left;
+  border-left: none;
+  position: sticky;
+  left: 0;
+  background: white;
+  z-index: 1;
+}
+.matrix-table thead th {
+  background: #f9fafb;
+  color: #6b7280;
+  text-transform: uppercase;
+  font-size: 10px;
+  letter-spacing: .03em;
+}
+.matrix-table thead th:first-child { background: #f9fafb; z-index: 2; }
+.matrix-table tbody tr:last-child td,
+.matrix-table tbody td.total-col,
+.matrix-table thead th.total-col {
+  font-weight: 700;
+}
+.matrix-table tbody tr.total-row td {
+  background: #f9fafb;
+  font-weight: 700;
+}
+.matrix-table tbody tr.total-row td:first-child { background: #f9fafb; }
+.matrix-cell-zero { color: #c7c7c7; }
 
 /* ---------- filter bar ---------- */
 .filter-bar {
