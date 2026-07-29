@@ -1,0 +1,159 @@
+<!doctype html>
+<html lang="id">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>Pendataan Pengambilan Barang</title>
+<link rel="stylesheet" href="/style.css" />
+</head>
+<body>
+  <header class="topbar">
+    <h1>Pendataan Pengambilan Barang</h1>
+    <nav class="tabs">
+      <button class="tab-btn active" data-tab="dashboard" type="button">Dashboard</button>
+      <button class="tab-btn" data-tab="data" type="button">Data Pengambilan</button>
+    </nav>
+  </header>
+
+  <main>
+    <section id="tab-dashboard" class="tab-panel active">
+      <div id="summary" class="summary"></div>
+
+      <div class="panel">
+        <h2>Rekap per Fakultas</h2>
+        <div class="table-wrap">
+          <table class="data-table plain">
+            <thead>
+              <tr>
+                <th>Fakultas</th>
+                <th class="num">Total</th>
+                <th class="num">Sudah Ambil</th>
+                <th class="num">Belum Ambil</th>
+                <th class="num">Belum Lunas</th>
+              </tr>
+            </thead>
+            <tbody id="fakultas-list"></tbody>
+          </table>
+        </div>
+      </div>
+    </section>
+
+    <section id="tab-data" class="tab-panel">
+      <div class="filter-bar">
+        <input id="search" type="search" placeholder="Cari nama..." autocomplete="off" />
+        <select id="filterFakultas">
+          <option value="">Semua Fakultas</option>
+        </select>
+        <select id="filterStatus">
+          <option value="">Semua Status Ambil</option>
+          <option value="belum">Belum Ambil</option>
+          <option value="sudah">Sudah Ambil</option>
+        </select>
+      </div>
+      <div id="filter-count" class="filter-count"></div>
+
+      <div class="table-wrap">
+        <table class="data-table">
+          <thead>
+            <tr>
+              <th class="col-nama">Nama</th>
+              <th class="col-status">Bayar</th>
+              <th class="col-ambil">Ambil</th>
+            </tr>
+          </thead>
+          <tbody id="list">
+            <tr><td colspan="3" class="hint">Memuat data...</td></tr>
+          </tbody>
+        </table>
+      </div>
+    </section>
+  </main>
+
+  <div id="modal-overlay" class="modal-overlay">
+    <div class="modal">
+      <div class="modal-header">
+        <div>
+          <div id="modal-nama" class="modal-nama"></div>
+          <div id="modal-sub" class="modal-sub"></div>
+        </div>
+        <span id="modal-badge" class="badge"></span>
+        <button id="modal-close" class="modal-close" type="button" aria-label="Tutup">&times;</button>
+      </div>
+      <div id="modal-saving" class="modal-saving" hidden>
+        <span class="spinner"></span> Menyimpan...
+      </div>
+      <div class="modal-body" id="modal-body"></div>
+    </div>
+  </div>
+
+  <template id="modal-body-template">
+    <div class="catatan-penjualan"></div>
+
+    <div class="pelunasan-box">
+      <div class="sisa-bayar-info"></div>
+      <label class="row">
+        <span class="label">Bayar sekarang (Rp)</span>
+        <div class="pelunasan-input-row">
+          <input type="number" class="num-pelunasan" min="0" step="1000" />
+          <button type="button" class="btn-pelunasan">Bayar / Lunasi</button>
+        </div>
+      </label>
+    </div>
+
+    <div class="ambil-section">
+      <div class="ambil-status"></div>
+      <button type="button" class="btn-ambil-toggle"></button>
+      <div class="ambil-confirm" hidden>
+        <p class="ambil-confirm-text"></p>
+        <div class="ambil-confirm-actions">
+          <button type="button" class="btn-ambil-yes">Ya, konfirmasi</button>
+          <button type="button" class="btn-ambil-cancel">Batal</button>
+        </div>
+      </div>
+    </div>
+
+    <label class="row">
+      <span class="label">Catatan pengambilan (misal: kurang dasi)</span>
+      <textarea class="txt-catatan-ambil" rows="2" placeholder="Kosongkan kalau tidak ada catatan"></textarea>
+    </label>
+
+    <details class="refund-box">
+      <summary>Refund</summary>
+      <label class="row checkbox-row">
+        <input type="checkbox" class="chk-refund-eligible" />
+        <span>Ada refund untuk orang ini</span>
+      </label>
+      <label class="row">
+        <span class="label">Nominal refund (Rp)</span>
+        <input type="number" class="num-refund-nominal" min="0" step="1000" placeholder="0" />
+      </label>
+      <label class="row checkbox-row">
+        <input type="checkbox" class="chk-refund-transfer" />
+        <span>Sudah ditransfer</span>
+      </label>
+      <label class="row">
+        <span class="label">Catatan refund</span>
+        <textarea class="txt-refund-catatan" rows="2" placeholder="Misal: metode Dana, no rekening, dll"></textarea>
+      </label>
+    </details>
+
+    <div class="save-bar">
+      <span class="save-status"></span>
+      <button type="button" class="btn-save" disabled>Simpan Perubahan</button>
+    </div>
+  </template>
+
+  <template id="row-template">
+    <tr class="item-row">
+      <td class="col-nama">
+        <div class="nama"></div>
+        <div class="sub"></div>
+      </td>
+      <td class="col-status"><span class="badge status-badge"></span></td>
+      <td class="col-ambil"><span class="ambil-pill"></span></td>
+    </tr>
+  </template>
+
+  <script src="/app.js"></script>
+</body>
+</html>
