@@ -4,6 +4,7 @@ let currentItem = null;
 const listEl = document.getElementById("list");
 const summaryEl = document.getElementById("summary");
 const fakultasListEl = document.getElementById("fakultas-list");
+const paketListEl = document.getElementById("paket-list");
 const searchEl = document.getElementById("search");
 const filterFakultasEl = document.getElementById("filterFakultas");
 const filterStatusEl = document.getElementById("filterStatus");
@@ -144,6 +145,27 @@ function renderDashboard() {
     <div class="stat warn"><b>${refundEligible.length - refundTransfer}</b><span>Refund belum transfer</span></div>
     <div class="stat"><b>${formatRupiah(refundTotalNominal)}</b><span>Total nominal refund</span></div>
   `;
+
+  const byPaket = new Map();
+  for (const item of allItems) {
+    const key = item.paket || "Satuan";
+    if (!byPaket.has(key)) byPaket.set(key, { total: 0, sudahAmbil: 0 });
+    const g = byPaket.get(key);
+    g.total++;
+    if (item.sudahAmbil) g.sudahAmbil++;
+  }
+  const paketRows = [...byPaket.entries()].sort((a, b) => a[0].localeCompare(b[0]));
+  paketListEl.innerHTML = paketRows
+    .map(
+      ([paket, g]) => `
+      <tr>
+        <td>${paket}</td>
+        <td class="num">${g.total}</td>
+        <td class="num">${g.sudahAmbil}</td>
+        <td class="num">${g.total - g.sudahAmbil}</td>
+      </tr>`
+    )
+    .join("");
 
   const byFakultas = new Map();
   for (const item of allItems) {
