@@ -151,14 +151,48 @@ app.post("/api/items/:id/pelunasan", (req, res) => {
   const jumlahBayarBaru = (item.jumlah_bayar || 0) + nominal;
   const sisaBayarBaru = Math.max(0, (item.sisa_bayar || 0) - nominal);
   const statusBaru = sisaBayarBaru <= 0 ? "LUNAS" : "DP";
+  const waktu = new Date().toISOString();
 
-  db.prepare(`
-    UPDATE items SET jumlah_bayar = ?, sisa_bayar = ?, status_bayar = ?, waktu_pelunasan = ?
-    WHERE id = ?
-  `).run(jumlahBayarBaru, sisaBayarBaru, statusBaru, new Date().toISOString(), id);
+  db.prepare("BEGIN").run();
+  try {
+    db.prepare(`
+      UPDATE items SET jumlah_bayar = ?, sisa_bayar = ?, status_bayar = ?, waktu_pelunasan = ?
+      WHERE id = ?
+    `).run(jumlahBayarBaru, sisaBayarBaru, statusBaru, waktu, id);
+
+    db.prepare(`
+      INSERT INTO payments (item_id, nominal, jumlah_bayar_setelah, waktu)
+      VALUES (?, ?, ?, ?)
+    `).run(id, nominal, jumlahBayarBaru, waktu);
+
+    db.prepare("COMMIT").run();
+  } catch (err) {
+    db.prepare("ROLLBACK").run();
+    throw err;
+  }
 
   const updated = db.prepare(`SELECT * FROM items WHERE id = ?`).get(id);
   res.json(rowToItem(updated));
+});
+
+app.get("/api/payments", (req, res) => {
+  const rows = db
+    .prepare(
+      `SELECT p.id, p.item_id, i.nama, p.nominal, p.jumlah_bayar_setelah, p.waktu
+       FROM payments p JOIN items i ON i.id = p.item_id
+       ORDER BY p.waktu DESC`
+    )
+    .all();
+  res.json(
+    rows.map((r) => ({
+      id: r.id,
+      itemId: r.item_id,
+      nama: r.nama,
+      nominal: r.nominal,
+      jumlahBayarSetelah: r.jumlah_bayar_setelah,
+      waktu: r.waktu,
+    }))
+  );
 });
 
 app.listen(PORT, () => {

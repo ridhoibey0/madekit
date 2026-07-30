@@ -20,6 +20,29 @@
       <div id="summary" class="summary"></div>
 
       <div class="panel">
+        <div class="panel-head">
+          <h2>Riwayat Pembayaran (Pelunasan)</h2>
+          <div class="segmented">
+            <button type="button" class="segmented-btn active" data-range="today">Hari Ini</button>
+            <button type="button" class="segmented-btn" data-range="all">Semua</button>
+          </div>
+        </div>
+        <p class="panel-hint" id="payments-note"></p>
+        <div class="table-wrap payments-table-wrap">
+          <table class="data-table plain">
+            <thead>
+              <tr>
+                <th>Jam</th>
+                <th>Nama</th>
+                <th class="num">Nominal</th>
+              </tr>
+            </thead>
+            <tbody id="payments-list"></tbody>
+          </table>
+        </div>
+      </div>
+
+      <div class="panel">
         <h2>Sisa Belum Ambil: Fakultas × Paket</h2>
         <p class="panel-hint">Buat bagi tugas antar admin — misal PAKET 4 dari FT sisa berapa.</p>
         <div class="matrix-wrap" id="matrix-wrap"></div>

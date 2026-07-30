@@ -56,6 +56,32 @@ Aman dijalankan berkali-kali (baris yang udah dikoreksi otomatis dilewati di
 run berikutnya). Angka harga lama/baru & nama paketnya bisa diubah di bagian
 atas file kalau butuh dipakai buat paket lain.
 
+## Riwayat pembayaran (pelunasan)
+
+Tiap kali ada yang bayar lewat tombol "Bayar / Lunasi", transaksinya kecatat
+sendiri-sendiri (bukan cuma total akumulasinya) di tabel `payments`. Ini bisa
+dilihat di Dashboard, panel **"Riwayat Pembayaran"** — toggle "Hari Ini" /
+"Semua", plus 2 kartu ringkasan "Pelunasan hari ini" (jumlah transaksi) dan
+"Total pelunasan hari ini" (nominal). "Hari ini" dihitung pakai tanggal lokal
+browser (WIB), bukan tanggal server, biar ga meleset walau VPS-nya di-set UTC.
+
+**Keterbatasan:** fitur ini baru mulai mencatat transaksi dari kapan kode ini
+di-deploy. Pelunasan yang sudah terjadi SEBELUM itu (misal kalau web-nya udah
+dipakai dari hari sebelumnya) tidak punya rincian per-transaksi, dan itu tidak
+bisa dipulihkan lagi (datanya memang belum pernah disimpan). Yang masih bisa
+dihitung: total KUMULATIF yang udah terkumpul sejauh ini (gabungan semua hari,
+tidak bisa dipisah per hari), pakai:
+
+```bash
+node scripts/estimasi-pelunasan-total.js
+```
+
+Read-only (tidak ubah apa pun di database), caranya bandingin `jumlah_bayar`
+di database sekarang vs kolom "Jumlah Bayar" di `Made Kit.xlsx` yang dipakai
+pas import pertama kali — selisihnya adalah duit yang masuk lewat web. Ini
+ESTIMASI, valid selama kolom "Jumlah Bayar" di Excel buat baris-baris lama
+tidak ikut diubah manual setelah import pertama.
+
 ## Deploy di VPS (garis besar)
 
 1. Copy folder ini ke VPS (`scp`/`git`), lalu `npm install --omit=dev`.

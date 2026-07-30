@@ -58,4 +58,20 @@ maybeAddColumn("waktu_pelunasan", "waktu_pelunasan TEXT");
 maybeAddColumn("source_row", "source_row INTEGER");
 db.exec(`CREATE UNIQUE INDEX IF NOT EXISTS idx_items_source_row ON items(source_row)`);
 
+// Riwayat tiap kali ada pembayaran dicatat lewat POST /api/items/:id/pelunasan
+// (beda dari items.jumlah_bayar yang cuma nyimpen TOTAL saat ini -- baris di
+// sini nyimpen tiap transaksi pembayarannya sendiri-sendiri, jadi bisa dilihat
+// "hari ini yang lunasin berapa total"). waktu disimpen dalam UTC ISO string;
+// pengelompokan "hari ini" sengaja dihitung di browser (app.js), bukan di SQL,
+// soalnya timezone VPS belum tentu WIB.
+db.exec(`
+  CREATE TABLE IF NOT EXISTS payments (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    item_id INTEGER NOT NULL,
+    nominal INTEGER NOT NULL,
+    jumlah_bayar_setelah INTEGER NOT NULL,
+    waktu TEXT NOT NULL
+  )
+`);
+
 module.exports = db;

@@ -1,11 +1,15 @@
 let allItems = [];
+let allPayments = [];
 let currentItem = null;
+let paymentsRange = "today";
 
 const listEl = document.getElementById("list");
 const summaryEl = document.getElementById("summary");
 const fakultasListEl = document.getElementById("fakultas-list");
 const paketListEl = document.getElementById("paket-list");
 const matrixWrapEl = document.getElementById("matrix-wrap");
+const paymentsListEl = document.getElementById("payments-list");
+const paymentsNoteEl = document.getElementById("payments-note");
 const searchEl = document.getElementById("search");
 const filterFakultasEl = document.getElementById("filterFakultas");
 const filterStatusEl = document.getElementById("filterStatus");
@@ -55,6 +59,24 @@ function formatWaktu(iso) {
   return d.toLocaleString("id-ID", { dateStyle: "short", timeStyle: "short" });
 }
 
+function formatJam(iso) {
+  const d = new Date(iso);
+  return d.toLocaleTimeString("id-ID", { hour: "2-digit", minute: "2-digit" });
+}
+
+// "Hari ini" sengaja dihitung pakai tanggal LOKAL browser (bukan tanggal UTC
+// mentah dari server), soalnya tim yang megang HP/laptop ada di WIB sementara
+// VPS belum tentu di-set ke timezone yang sama.
+function isToday(iso) {
+  const d = new Date(iso);
+  const now = new Date();
+  return (
+    d.getFullYear() === now.getFullYear() &&
+    d.getMonth() === now.getMonth() &&
+    d.getDate() === now.getDate()
+  );
+}
+
 // ---------- tabs ----------
 document.querySelectorAll(".tab-btn").forEach((btn) => {
   btn.addEventListener("click", () => {
@@ -67,11 +89,47 @@ document.querySelectorAll(".tab-btn").forEach((btn) => {
 
 // ---------- load ----------
 async function loadAllItems() {
-  const res = await fetch("/api/items");
-  allItems = await res.json();
+  const [items, payments] = await Promise.all([
+    fetch("/api/items").then((r) => r.json()),
+    fetch("/api/payments").then((r) => r.json()),
+  ]);
+  allItems = items;
+  allPayments = payments;
   populateFakultasFilter();
   renderDashboard();
   renderTable();
+}
+
+document.querySelectorAll(".segmented-btn").forEach((btn) => {
+  btn.addEventListener("click", () => {
+    document.querySelectorAll(".segmented-btn").forEach((b) => b.classList.remove("active"));
+    btn.classList.add("active");
+    paymentsRange = btn.dataset.range;
+    renderPaymentsPanel();
+  });
+});
+
+function renderPaymentsPanel() {
+  const rows = paymentsRange === "today" ? allPayments.filter((p) => isToday(p.waktu)) : allPayments;
+  const total = rows.reduce((sum, p) => sum + p.nominal, 0);
+
+  paymentsNoteEl.textContent =
+    rows.length === 0
+      ? paymentsRange === "today"
+        ? "Belum ada pelunasan hari ini."
+        : "Belum ada riwayat pelunasan."
+      : `${rows.length} transaksi · Total ${formatRupiah(total)}`;
+
+  paymentsListEl.innerHTML = rows
+    .map(
+      (p) => `
+      <tr>
+        <td>${formatJam(p.waktu)}</td>
+        <td>${p.nama}</td>
+        <td class="num">${formatRupiah(p.nominal)}</td>
+      </tr>`
+    )
+    .join("");
 }
 
 // Dipakai bareng banyak admin sekaligus -> tiap browser cuma nge-load data
@@ -88,9 +146,10 @@ const POLL_INTERVAL_MS = 15000;
 
 async function pollRefresh() {
   try {
-    const res = await fetch("/api/items");
+    const [res, paymentsRes] = await Promise.all([fetch("/api/items"), fetch("/api/payments")]);
     if (!res.ok) return;
     const fresh = await res.json();
+    if (paymentsRes.ok) allPayments = await paymentsRes.json();
     const byId = new Map(allItems.map((i) => [i.id, i]));
 
     for (const f of fresh) {
@@ -136,6 +195,8 @@ function renderDashboard() {
   const refundEligible = allItems.filter((i) => i.refundEligible);
   const refundTransfer = refundEligible.filter((i) => i.refundSudahTransfer).length;
   const refundTotalNominal = refundEligible.reduce((sum, i) => sum + (i.refundNominal || 0), 0);
+  const paymentsToday = allPayments.filter((p) => isToday(p.waktu));
+  const pelunasanHariIni = paymentsToday.reduce((sum, p) => sum + p.nominal, 0);
 
   summaryEl.innerHTML = `
     <div class="stat"><b>${total}</b><span>Total</span></div>
@@ -146,8 +207,11 @@ function renderDashboard() {
     <div class="stat"><b>${refundEligible.length}</b><span>Ada refund</span></div>
     <div class="stat warn"><b>${refundEligible.length - refundTransfer}</b><span>Refund belum transfer</span></div>
     <div class="stat"><b>${formatRupiah(refundTotalNominal)}</b><span>Total nominal refund</span></div>
+    <div class="stat ok"><b>${paymentsToday.length}</b><span>Pelunasan hari ini</span></div>
+    <div class="stat ok"><b>${formatRupiah(pelunasanHariIni)}</b><span>Total pelunasan hari ini</span></div>
   `;
 
+  renderPaymentsPanel();
   renderMatrix();
 
   const byPaket = new Map();
