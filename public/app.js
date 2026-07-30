@@ -9,6 +9,7 @@ const matrixWrapEl = document.getElementById("matrix-wrap");
 const searchEl = document.getElementById("search");
 const filterFakultasEl = document.getElementById("filterFakultas");
 const filterStatusEl = document.getElementById("filterStatus");
+const filterRefundEl = document.getElementById("filterRefund");
 const filterCountEl = document.getElementById("filter-count");
 const rowTemplate = document.getElementById("row-template");
 const modalBodyTemplate = document.getElementById("modal-body-template");
@@ -262,12 +263,16 @@ function getFilteredItems() {
   const q = searchEl.value.trim().toLowerCase();
   const fakultas = filterFakultasEl.value;
   const status = filterStatusEl.value;
+  const refund = filterRefundEl.value;
 
   return allItems.filter((item) => {
     if (q && !item.nama.toLowerCase().includes(q)) return false;
     if (fakultas && item.fakultas !== fakultas) return false;
     if (status === "sudah" && !item.sudahAmbil) return false;
     if (status === "belum" && item.sudahAmbil) return false;
+    if (refund === "ada" && !item.refundEligible) return false;
+    if (refund === "belum-transfer" && !(item.refundEligible && !item.refundSudahTransfer)) return false;
+    if (refund === "sudah-transfer" && !(item.refundEligible && item.refundSudahTransfer)) return false;
     return true;
   });
 }
@@ -302,6 +307,13 @@ function renderRow(item) {
   badge.textContent = item.statusBayar || "-";
   badge.classList.add(item.statusBayar === "LUNAS" ? "badge-ok" : "badge-warn");
 
+  const refundPill = node.querySelector(".refund-pill");
+  if (item.refundEligible) {
+    refundPill.hidden = false;
+    refundPill.textContent = item.refundSudahTransfer ? "Refund ✓" : "Refund";
+    refundPill.classList.add(item.refundSudahTransfer ? "badge-ok" : "badge-refund");
+  }
+
   const pill = node.querySelector(".ambil-pill");
   pill.textContent = item.sudahAmbil ? "Sudah" : "Belum";
   pill.classList.add(item.sudahAmbil ? "badge-ok" : "badge-warn");
@@ -312,7 +324,7 @@ function renderRow(item) {
   return node;
 }
 
-[searchEl, filterFakultasEl, filterStatusEl].forEach((el) => {
+[searchEl, filterFakultasEl, filterStatusEl, filterRefundEl].forEach((el) => {
   const evt = el === searchEl ? "input" : "change";
   el.addEventListener(evt, () => {
     clearTimeout(debounceTimer);

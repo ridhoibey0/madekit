@@ -1,4 +1,9 @@
 * { box-sizing: border-box; }
+/* Jaga-jaga: kalau ada elemen `hidden` yang class-nya sendiri nge-set display
+   (misal .badge { display: inline-block }), rule itu bisa ngalahin default
+   [hidden] browser gara-gara specificity-nya sama tapi stylesheet ini kemuat
+   belakangan. Aturan ini pastiin [hidden] SELALU menang. */
+[hidden] { display: none !important; }
 body {
   margin: 0;
   font-family: system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
@@ -219,8 +224,11 @@ main {
   font-weight: 600;
   display: inline-block;
 }
+.col-status .badge { display: block; width: fit-content; margin: 0 auto; }
+.col-status .badge + .badge { margin-top: 4px; }
 .badge-ok { background: #dcfce7; color: #15803d; }
 .badge-warn { background: #fef3c7; color: #b45309; }
+.badge-refund { background: #ede9fe; color: #6d28d9; }
 
 /* ---------- modal ---------- */
 .modal-overlay {

@@ -72,6 +72,12 @@
           <option value="belum">Belum Ambil</option>
           <option value="sudah">Sudah Ambil</option>
         </select>
+        <select id="filterRefund">
+          <option value="">Semua (Refund)</option>
+          <option value="ada">Ada Refund</option>
+          <option value="belum-transfer">Refund Belum Transfer</option>
+          <option value="sudah-transfer">Refund Sudah Transfer</option>
+        </select>
       </div>
       <div id="filter-count" class="filter-count"></div>
 
@@ -172,7 +178,10 @@
         <div class="nama"></div>
         <div class="sub"></div>
       </td>
-      <td class="col-status"><span class="badge status-badge"></span></td>
+      <td class="col-status">
+        <span class="badge status-badge"></span>
+        <span class="badge refund-pill" hidden></span>
+      </td>
       <td class="col-ambil"><span class="ambil-pill"></span></td>
     </tr>
   </template>

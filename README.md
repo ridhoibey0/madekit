@@ -29,6 +29,33 @@ data refund yang sudah diisi manual TIDAK akan hilang/ketimpa. Baris dicocokkan
 dari posisi barisnya di Excel, jadi aman walau ada 2 orang beli paket yang sama
 persis dengan harga yang sama (tidak ketuker/ketimpa jadi 1 baris).
 
+## Koreksi harga (contoh: PAKET 4 turun jadi Rp55.000)
+
+Kalau harga sebuah paket berubah SETELAH import awal (dan mungkin setelah
+sebagian orang sudah ambil barang), pakai `scripts/turunkan-harga-paket4.js`
+alih-alih edit manual satu-satu. Ini TIDAK butuh migrasi skema (kolom refund
+sudah ada dari awal) dan TIDAK nyentuh `sudah_ambil`/catatan pengambilan sama
+sekali — aman dijalankan langsung ke database production yang progress-nya
+sudah jalan.
+
+```bash
+node scripts/turunkan-harga-paket4.js
+```
+
+Buat tiap orang PAKET 4 yang masih di harga lama (Rp65.000), satu formula
+dipakai buat semua kasus (`overpaid = jumlah_bayar - harga_baru`):
+
+- Udah bayar lebih dari harga baru (termasuk yang udah LUNAS di harga lama)
+  → status jadi LUNAS, sisa 0, dan kelebihannya otomatis ditandai buat
+  direfund (`Ada refund` dicentang + nominal + catatan keisi otomatis).
+- Udah bayar pas sama harga baru → LUNAS, tanpa refund.
+- Belum cukup di harga baru juga → tetap DP, tapi sisa tagihannya dikurangi
+  sesuai selisih harga (jadi begitu pelunasan lewat web, angkanya udah bener).
+
+Aman dijalankan berkali-kali (baris yang udah dikoreksi otomatis dilewati di
+run berikutnya). Angka harga lama/baru & nama paketnya bisa diubah di bagian
+atas file kalau butuh dipakai buat paket lain.
+
 ## Deploy di VPS (garis besar)
 
 1. Copy folder ini ke VPS (`scp`/`git`), lalu `npm install --omit=dev`.
@@ -165,10 +192,15 @@ deploy ke VPS publik dalam kondisi itu (server juga akan cetak warning di log).
 
 ## Cara pakai pas hari-H
 
-- Tab **Dashboard**: ringkasan total/sudah ambil/lunas/refund, plus rekap per
-  Fakultas.
+- Tab **Dashboard**: ringkasan total/sudah ambil/lunas/refund, matrix sisa
+  belum ambil per Fakultas × Paket (buat bagi tugas antar admin), plus rekap
+  per Paket dan per Fakultas.
 - Tab **Data Pengambilan**: cari nama / filter per Fakultas / filter status
-  ambil, lalu klik barisnya buat buka detail orangnya.
+  ambil / filter status refund ("Ada Refund", "Refund Belum Transfer",
+  "Refund Sudah Transfer" — dipakai pas mau proses transfer refund biar ga
+  perlu buka satu-satu), lalu klik barisnya buat buka detail orangnya. Baris
+  yang ada refund-nya kelihatan langsung di list lewat badge ungu "Refund"
+  (jadi "Refund ✓" hijau kalau udah ditransfer), tanpa perlu buka detail dulu.
 - Di dalam detail (modal): kalau masih DP, ada kotak kuning buat catat
   pelunasan (isi nominal yang dibayar sekarang, klik "Bayar / Lunasi" — status
   otomatis jadi LUNAS begitu sisanya lunas).
