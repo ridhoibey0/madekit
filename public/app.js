@@ -2,6 +2,7 @@ let allItems = [];
 let allPayments = [];
 let currentItem = null;
 let paymentsRange = "today";
+let ambilRange = "today";
 
 const listEl = document.getElementById("list");
 const summaryEl = document.getElementById("summary");
@@ -10,6 +11,8 @@ const paketListEl = document.getElementById("paket-list");
 const matrixWrapEl = document.getElementById("matrix-wrap");
 const paymentsListEl = document.getElementById("payments-list");
 const paymentsNoteEl = document.getElementById("payments-note");
+const ambilListEl = document.getElementById("ambil-list");
+const ambilNoteEl = document.getElementById("ambil-note");
 const searchEl = document.getElementById("search");
 const filterFakultasEl = document.getElementById("filterFakultas");
 const filterStatusEl = document.getElementById("filterStatus");
@@ -102,12 +105,45 @@ async function loadAllItems() {
 
 document.querySelectorAll(".segmented-btn").forEach((btn) => {
   btn.addEventListener("click", () => {
-    document.querySelectorAll(".segmented-btn").forEach((b) => b.classList.remove("active"));
+    const group = btn.dataset.group;
+    document
+      .querySelectorAll(`.segmented-btn[data-group="${group}"]`)
+      .forEach((b) => b.classList.remove("active"));
     btn.classList.add("active");
-    paymentsRange = btn.dataset.range;
-    renderPaymentsPanel();
+    if (group === "pembayaran") {
+      paymentsRange = btn.dataset.range;
+      renderPaymentsPanel();
+    } else if (group === "ambil") {
+      ambilRange = btn.dataset.range;
+      renderAmbilPanel();
+    }
   });
 });
+
+function renderAmbilPanel() {
+  const sudahAmbilItems = allItems.filter((i) => i.sudahAmbil && i.waktuAmbil);
+  const rows =
+    ambilRange === "today" ? sudahAmbilItems.filter((i) => isToday(i.waktuAmbil)) : sudahAmbilItems;
+  rows.sort((a, b) => new Date(b.waktuAmbil) - new Date(a.waktuAmbil));
+
+  ambilNoteEl.textContent =
+    rows.length === 0
+      ? ambilRange === "today"
+        ? "Belum ada yang ambil barang hari ini."
+        : "Belum ada riwayat pengambilan."
+      : `${rows.length} orang sudah ambil`;
+
+  ambilListEl.innerHTML = rows
+    .map(
+      (i) => `
+      <tr>
+        <td>${formatJam(i.waktuAmbil)}</td>
+        <td>${i.nama}</td>
+        <td>${i.paket || "Satuan"}</td>
+      </tr>`
+    )
+    .join("");
+}
 
 function renderPaymentsPanel() {
   const rows = paymentsRange === "today" ? allPayments.filter((p) => isToday(p.waktu)) : allPayments;
@@ -197,11 +233,13 @@ function renderDashboard() {
   const refundTotalNominal = refundEligible.reduce((sum, i) => sum + (i.refundNominal || 0), 0);
   const paymentsToday = allPayments.filter((p) => isToday(p.waktu));
   const pelunasanHariIni = paymentsToday.reduce((sum, p) => sum + p.nominal, 0);
+  const ambilHariIni = allItems.filter((i) => i.sudahAmbil && i.waktuAmbil && isToday(i.waktuAmbil)).length;
 
   summaryEl.innerHTML = `
     <div class="stat"><b>${total}</b><span>Total</span></div>
     <div class="stat ok"><b>${sudahAmbil}</b><span>Sudah ambil</span></div>
     <div class="stat warn"><b>${total - sudahAmbil}</b><span>Belum ambil</span></div>
+    <div class="stat ok"><b>${ambilHariIni}</b><span>Pengambilan hari ini</span></div>
     <div class="stat ok"><b>${lunas}</b><span>Lunas</span></div>
     <div class="stat warn"><b>${total - lunas}</b><span>Belum lunas</span></div>
     <div class="stat"><b>${refundEligible.length}</b><span>Ada refund</span></div>
@@ -212,6 +250,7 @@ function renderDashboard() {
   `;
 
   renderPaymentsPanel();
+  renderAmbilPanel();
   renderMatrix();
 
   const byPaket = new Map();
@@ -617,3 +656,164 @@ function setupModalCatatanDanRefund() {
 }
 
 loadAllItems();
+
+// ---------- keuangan ----------
+// Sengaja TIDAK di-fetch pas halaman kebuka -- kalau langsung fetch bakal
+// mancing prompt login kedua (FINANCE_USER/PASS) buat SEMUA orang yang buka
+// web ini, padahal cuma admin keuangan yang perlu itu. Data keuangan baru
+// diambil begitu tombol "Buka Keuangan" diklik.
+let keuanganExpenses = [];
+let expenseTotalTouched = false;
+
+const keuanganLockedEl = document.getElementById("keuangan-locked");
+const keuanganContentEl = document.getElementById("keuangan-content");
+const keuanganSummaryEl = document.getElementById("keuangan-summary");
+const btnBukaKeuangan = document.getElementById("btn-buka-keuangan");
+const expensesListEl = document.getElementById("expenses-list");
+const formExpense = document.getElementById("form-expense");
+const expTanggal = document.getElementById("exp-tanggal");
+const expNama = document.getElementById("exp-nama");
+const expQty = document.getElementById("exp-qty");
+const expSatuan = document.getElementById("exp-satuan");
+const expHargaSatuan = document.getElementById("exp-harga-satuan");
+const expTotal = document.getElementById("exp-total");
+const expCatatan = document.getElementById("exp-catatan");
+const expenseFormStatus = document.getElementById("expense-form-status");
+
+function todayDateStr() {
+  const d = new Date();
+  const m = String(d.getMonth() + 1).padStart(2, "0");
+  const day = String(d.getDate()).padStart(2, "0");
+  return `${d.getFullYear()}-${m}-${day}`;
+}
+
+btnBukaKeuangan.addEventListener("click", async () => {
+  btnBukaKeuangan.disabled = true;
+  btnBukaKeuangan.textContent = "Membuka...";
+  try {
+    const [summaryRes, expensesRes] = await Promise.all([
+      fetch("/api/keuangan/summary"),
+      fetch("/api/keuangan/expenses"),
+    ]);
+    if (!summaryRes.ok || !expensesRes.ok) {
+      expenseFormStatus.textContent = "";
+      alert("Login keuangan gagal atau dibatalkan. Coba klik lagi.");
+      return;
+    }
+    const summary = await summaryRes.json();
+    keuanganExpenses = await expensesRes.json();
+    keuanganLockedEl.hidden = true;
+    keuanganContentEl.hidden = false;
+    expTanggal.value = todayDateStr();
+    renderKeuanganSummary(summary);
+    renderExpensesList();
+  } finally {
+    btnBukaKeuangan.disabled = false;
+    btnBukaKeuangan.textContent = "Buka Keuangan";
+  }
+});
+
+async function refreshKeuanganSummary() {
+  const res = await fetch("/api/keuangan/summary");
+  if (res.ok) renderKeuanganSummary(await res.json());
+}
+
+function renderKeuanganSummary(s) {
+  keuanganSummaryEl.innerHTML = `
+    <div class="stat ok"><b>${formatRupiah(s.totalPemasukan)}</b><span>Total Pemasukan</span></div>
+    <div class="stat warn"><b>${formatRupiah(s.totalRefundTransfer)}</b><span>Refund Sudah Ditransfer</span></div>
+    <div class="stat warn"><b>${formatRupiah(s.totalRefundBelumTransfer)}</b><span>Refund Belum Ditransfer</span></div>
+    <div class="stat warn"><b>${formatRupiah(s.totalPengeluaran)}</b><span>Total Pengeluaran Bahan</span></div>
+    <div class="stat ok"><b>${formatRupiah(s.saldoKas)}</b><span>Saldo Kas Sekarang</span></div>
+    <div class="stat"><b>${formatRupiah(s.saldoSetelahSemuaRefund)}</b><span>Saldo Setelah Semua Refund Selesai</span></div>
+  `;
+}
+
+function renderExpensesList() {
+  if (keuanganExpenses.length === 0) {
+    expensesListEl.innerHTML = `<tr><td colspan="8" class="hint">Belum ada pengeluaran dicatat.</td></tr>`;
+    return;
+  }
+  expensesListEl.innerHTML = keuanganExpenses
+    .map(
+      (e) => `
+      <tr>
+        <td>${e.tanggal}</td>
+        <td>${e.namaBahan}</td>
+        <td class="num">${e.qty}</td>
+        <td>${e.satuan || "-"}</td>
+        <td class="num">${formatRupiah(e.hargaSatuan)}</td>
+        <td class="num">${formatRupiah(e.total)}</td>
+        <td>${e.catatan || ""}</td>
+        <td><button type="button" class="btn-delete-expense" data-id="${e.id}">Hapus</button></td>
+      </tr>`
+    )
+    .join("");
+
+  expensesListEl.querySelectorAll(".btn-delete-expense").forEach((btn) => {
+    btn.addEventListener("click", async () => {
+      if (!confirm("Hapus catatan pengeluaran ini?")) return;
+      const id = btn.dataset.id;
+      const res = await fetch(`/api/keuangan/expenses/${id}`, { method: "DELETE" });
+      if (res.ok) {
+        keuanganExpenses = keuanganExpenses.filter((e) => String(e.id) !== id);
+        renderExpensesList();
+        refreshKeuanganSummary();
+      }
+    });
+  });
+}
+
+function suggestTotal() {
+  if (expenseTotalTouched) return;
+  const qty = Number(expQty.value) || 0;
+  const harga = Number(expHargaSatuan.value) || 0;
+  expTotal.value = qty && harga ? qty * harga : "";
+}
+expQty.addEventListener("input", suggestTotal);
+expHargaSatuan.addEventListener("input", suggestTotal);
+expTotal.addEventListener("input", () => {
+  expenseTotalTouched = true;
+});
+
+formExpense.addEventListener("submit", async (e) => {
+  e.preventDefault();
+  const btn = document.getElementById("btn-tambah-expense");
+  btn.disabled = true;
+  expenseFormStatus.textContent = "Menyimpan...";
+  expenseFormStatus.className = "save-status dirty";
+  try {
+    const res = await fetch("/api/keuangan/expenses", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        tanggal: expTanggal.value,
+        namaBahan: expNama.value,
+        qty: expQty.value,
+        satuan: expSatuan.value,
+        hargaSatuan: expHargaSatuan.value,
+        total: expTotal.value,
+        catatan: expCatatan.value,
+      }),
+    });
+    if (!res.ok) {
+      const err = await res.json().catch(() => ({}));
+      expenseFormStatus.textContent = err.error || "Gagal menyimpan.";
+      expenseFormStatus.className = "save-status dirty";
+      return;
+    }
+    const created = await res.json();
+    keuanganExpenses.unshift(created);
+    renderExpensesList();
+    refreshKeuanganSummary();
+
+    formExpense.reset();
+    expTanggal.value = todayDateStr();
+    expQty.value = 1;
+    expenseTotalTouched = false;
+    expenseFormStatus.textContent = "Tersimpan";
+    expenseFormStatus.className = "save-status saved";
+  } finally {
+    btn.disabled = false;
+  }
+});

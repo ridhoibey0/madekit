@@ -82,6 +82,51 @@ pas import pertama kali — selisihnya adalah duit yang masuk lewat web. Ini
 ESTIMASI, valid selama kolom "Jumlah Bayar" di Excel buat baris-baris lama
 tidak ikut diubah manual setelah import pertama.
 
+## Riwayat pengambilan barang
+
+Sama kayak riwayat pembayaran di atas, tapi buat pengambilan barang — panel
+**"Riwayat Pengambilan Barang"** di Dashboard (toggle Hari Ini/Semua) + kartu
+"Pengambilan hari ini". Ini TIDAK butuh tabel baru (dihitung langsung dari
+`waktu_ambil` yang udah ada dari awal di tiap baris `items`), jadi otomatis
+kepakai buat data yang udah ada, tidak ada keterbatasan kayak riwayat
+pembayaran di atas.
+
+## Keuangan (kas masuk/keluar & pembelian bahan)
+
+Tab **Keuangan** (butuh login KEDUA yang terpisah, lihat di bawah) menunjukkan:
+
+- **Total Pemasukan** — total `jumlah_bayar` dari semua orang.
+- **Refund Sudah/Belum Ditransfer** — dari data refund yang udah ada.
+- **Total Pengeluaran Bahan** — jumlah dari catatan pembelian bahan (lihat
+  bawah).
+- **Saldo Kas Sekarang** = Pemasukan − Refund yang udah ditransfer − Pengeluaran.
+- **Saldo Setelah Semua Refund Selesai** = Saldo Kas Sekarang − Refund yang
+  belum ditransfer (proyeksi kas akhir kalau semua refund yang masih pending
+  udah dibayarkan semua).
+
+Di tab ini juga ada form **"Catat Pembelian Bahan"** — kolomnya sengaja niru
+persis sheet "Pembelian Bahan" di `Made Kit.xlsx` (Tanggal, Nama Bahan, Qty,
+Satuan, Harga Satuan, Total, Catatan). Field **Total** SENGAJA independen dari
+Qty × Harga Satuan (cuma disaranin otomatis, tapi bisa diganti manual) — soalnya
+di data aslinya juga sering beda dikit karena pembulatan/diskon pas checkout.
+
+### Login terpisah buat Keuangan
+
+Tab ini dilindungi password KEDUA (`FINANCE_USER`/`FINANCE_PASS` di `.env`),
+independen dari password admin biasa (`ADMIN_USER`/`ADMIN_PASS`) yang dipakai
+tim pengambilan. Alurnya:
+
+1. Semua orang (termasuk admin keuangan) tetap perlu login pakai password
+   admin biasa dulu buat bisa buka web-nya sama sekali.
+2. Begitu klik tombol **"Buka Keuangan"** di tab Keuangan, browser bakal
+   nampilin popup login KEDUA (beda dari yang pertama) khusus minta
+   `FINANCE_USER`/`FINANCE_PASS`. Tim pengambilan yang cuma tahu password
+   admin biasa TIDAK akan bisa lewat sini.
+
+Kalau `FINANCE_PASS` dikosongin di `.env`, tab Keuangan otomatis kepake
+password admin biasa aja (semua tim ikut bisa lihat) — server juga bakal
+nyetak warning di log soal ini.
+
 ## Deploy di VPS (garis besar)
 
 1. Copy folder ini ke VPS (`scp`/`git`), lalu `npm install --omit=dev`.
@@ -96,6 +141,31 @@ tidak ikut diubah manual setelah import pertama.
 5. (Opsional tapi disarankan) pasang Nginx sebagai reverse proxy + HTTPS lewat
    `certbot` — lihat bagian [Nginx + HTTPS (certbot)](#nginx--https-certbot)
    di bawah.
+
+## Update deploy yang SUDAH jalan (tanpa reset database)
+
+Buat naikin perubahan kode ke VPS yang udah punya progress pengambilan real
+(kayak sekarang — udah jalan 2 hari), urutannya:
+
+```bash
+ssh ke VPS-nya, lalu:
+cd /path/ke/pengambilan-app
+git pull
+npm install --omit=dev      # cuma perlu kalau ada dependency baru; aman dijalankan walau ga ada
+nano .env                   # WAJIB tambahin baris FINANCE_USER & FINANCE_PASS (lihat .env.example)
+pm2 restart pengambilan
+```
+
+**TIDAK PERNAH jalanin ini di VPS** (bakal nimpa/ilangin progress pengambilan
+yang udah ada): `npm run import`, atau hapus file di `data/`. Perubahan kode di
+atas TIDAK butuh itu — `db.js` cuma nambah tabel baru (`payments`, `expenses`)
+pakai `CREATE TABLE IF NOT EXISTS` dan kolom baru pakai `ALTER TABLE ... ADD
+COLUMN` yang dicek dulu ada/enggaknya, jadi otomatis nyesuain sendiri pas
+`pm2 restart` tanpa nyentuh baris yang udah ada sama sekali.
+
+Setelah restart, cek log-nya sebentar buat mastiin ga ada warning yang belum
+disadari (`pm2 logs pengambilan --lines 30`), terutama soal `FINANCE_PASS`
+kalau lupa diisi.
 
 ## Nginx + HTTPS (certbot)
 

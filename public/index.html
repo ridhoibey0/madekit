@@ -12,6 +12,7 @@
     <nav class="tabs">
       <button class="tab-btn active" data-tab="dashboard" type="button">Dashboard</button>
       <button class="tab-btn" data-tab="data" type="button">Data Pengambilan</button>
+      <button class="tab-btn" data-tab="keuangan" type="button">Keuangan</button>
     </nav>
   </header>
 
@@ -23,8 +24,8 @@
         <div class="panel-head">
           <h2>Riwayat Pembayaran (Pelunasan)</h2>
           <div class="segmented">
-            <button type="button" class="segmented-btn active" data-range="today">Hari Ini</button>
-            <button type="button" class="segmented-btn" data-range="all">Semua</button>
+            <button type="button" class="segmented-btn active" data-range="today" data-group="pembayaran">Hari Ini</button>
+            <button type="button" class="segmented-btn" data-range="all" data-group="pembayaran">Semua</button>
           </div>
         </div>
         <p class="panel-hint" id="payments-note"></p>
@@ -38,6 +39,29 @@
               </tr>
             </thead>
             <tbody id="payments-list"></tbody>
+          </table>
+        </div>
+      </div>
+
+      <div class="panel">
+        <div class="panel-head">
+          <h2>Riwayat Pengambilan Barang</h2>
+          <div class="segmented">
+            <button type="button" class="segmented-btn active" data-range="today" data-group="ambil">Hari Ini</button>
+            <button type="button" class="segmented-btn" data-range="all" data-group="ambil">Semua</button>
+          </div>
+        </div>
+        <p class="panel-hint" id="ambil-note"></p>
+        <div class="table-wrap payments-table-wrap">
+          <table class="data-table plain">
+            <thead>
+              <tr>
+                <th>Jam</th>
+                <th>Nama</th>
+                <th>Paket</th>
+              </tr>
+            </thead>
+            <tbody id="ambil-list"></tbody>
           </table>
         </div>
       </div>
@@ -119,6 +143,80 @@
         </table>
       </div>
     </section>
+
+    <section id="tab-keuangan" class="tab-panel">
+      <div id="keuangan-locked" class="panel keuangan-locked">
+        <p>Buka tab ini buat lihat ringkasan keuangan & catat pembelian bahan.
+        Browser bakal minta login KEDUA (beda dari login awal) khusus buat
+        akses ini.</p>
+        <button type="button" class="btn-save" id="btn-buka-keuangan">Buka Keuangan</button>
+      </div>
+
+      <div id="keuangan-content" hidden>
+        <div id="keuangan-summary" class="summary"></div>
+
+        <div class="panel">
+          <h2>Catat Pembelian Bahan</h2>
+          <form id="form-expense" class="expense-form">
+            <label class="row">
+              <span class="label">Tanggal</span>
+              <input type="date" id="exp-tanggal" required />
+            </label>
+            <label class="row">
+              <span class="label">Nama Bahan</span>
+              <input type="text" id="exp-nama" placeholder="Misal: Dasi Unsil" required />
+            </label>
+            <div class="expense-form-row">
+              <label class="row">
+                <span class="label">Qty</span>
+                <input type="number" id="exp-qty" min="1" step="1" value="1" required />
+              </label>
+              <label class="row">
+                <span class="label">Satuan</span>
+                <input type="text" id="exp-satuan" placeholder="pcs / roll / dll" />
+              </label>
+            </div>
+            <div class="expense-form-row">
+              <label class="row">
+                <span class="label">Harga Satuan (Rp)</span>
+                <input type="number" id="exp-harga-satuan" min="0" step="1" />
+              </label>
+              <label class="row">
+                <span class="label">Total (Rp)</span>
+                <input type="number" id="exp-total" min="0" step="1" placeholder="Otomatis dari Qty x Harga Satuan" />
+              </label>
+            </div>
+            <label class="row">
+              <span class="label">Catatan</span>
+              <input type="text" id="exp-catatan" placeholder="Opsional" />
+            </label>
+            <button type="submit" class="btn-save" id="btn-tambah-expense">Tambah Pengeluaran</button>
+            <span class="save-status" id="expense-form-status"></span>
+          </form>
+        </div>
+
+        <div class="panel">
+          <h2>Riwayat Pembelian Bahan</h2>
+          <div class="table-wrap">
+            <table class="data-table plain">
+              <thead>
+                <tr>
+                  <th>Tanggal</th>
+                  <th>Nama Bahan</th>
+                  <th class="num">Qty</th>
+                  <th>Satuan</th>
+                  <th class="num">Harga Satuan</th>
+                  <th class="num">Total</th>
+                  <th>Catatan</th>
+                  <th></th>
+                </tr>
+              </thead>
+              <tbody id="expenses-list"></tbody>
+            </table>
+          </div>
+        </div>
+      </div>
+    </section>
   </main>
 
   <div id="modal-overlay" class="modal-overlay">
@@ -146,7 +244,7 @@
       <label class="row">
         <span class="label">Bayar sekarang (Rp)</span>
         <div class="pelunasan-input-row">
-          <input type="number" class="num-pelunasan" min="0" step="1000" />
+          <input type="number" class="num-pelunasan" min="0" step="1" />
           <button type="button" class="btn-pelunasan">Bayar / Lunasi</button>
         </div>
       </label>
@@ -177,7 +275,7 @@
       </label>
       <label class="row">
         <span class="label">Nominal refund (Rp)</span>
-        <input type="number" class="num-refund-nominal" min="0" step="1000" placeholder="0" />
+        <input type="number" class="num-refund-nominal" min="0" step="1" placeholder="0" />
       </label>
       <label class="row checkbox-row">
         <input type="checkbox" class="chk-refund-transfer" />

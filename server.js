@@ -6,25 +6,55 @@ const db = require("./db");
 const PORT = process.env.PORT || 3000;
 const ADMIN_USER = process.env.ADMIN_USER || "admin";
 const ADMIN_PASS = process.env.ADMIN_PASS || "";
+const FINANCE_USER = process.env.FINANCE_USER || "";
+const FINANCE_PASS = process.env.FINANCE_PASS || "";
 
 const app = express();
 app.use(express.json());
 
-if (ADMIN_PASS) {
-  app.use((req, res, next) => {
+function basicAuthMiddleware(user, pass, realm) {
+  return (req, res, next) => {
     const auth = req.headers.authorization || "";
     const [scheme, encoded] = auth.split(" ");
     if (scheme === "Basic" && encoded) {
-      const [user, pass] = Buffer.from(encoded, "base64").toString().split(":");
-      if (user === ADMIN_USER && pass === ADMIN_PASS) return next();
+      const [u, p] = Buffer.from(encoded, "base64").toString().split(":");
+      if (u === user && p === pass) return next();
     }
-    res.set("WWW-Authenticate", 'Basic realm="Pengambilan Barang"');
+    res.set("WWW-Authenticate", `Basic realm="${realm}"`);
     res.status(401).send("Login diperlukan.");
+  };
+}
+
+// /api/keuangan/* SENGAJA dilewatin di sini (bukan dicek ADMIN_USER/PASS di
+// gate ini) -- soalnya HTTP Basic Auth cuma ngirim SATU pasang kredensial per
+// request. Kalau gate ini dipaksa jalan juga buat /api/keuangan/*, begitu
+// browser ngirim kredensial FINANCE (buat lolos gate finance di bawah), gate
+// umum ini bakal nolak duluan karena itu bukan ADMIN_USER/PASS -> muter terus
+// ga pernah lolos. Jadi /api/keuangan/* dikasih gate SENDIRI yang independen
+// (lihat di bawah), sementara semua halaman/API lain tetap wajib login admin
+// biasa dulu buat bisa masuk ke web-nya sama sekali.
+if (ADMIN_PASS) {
+  app.use((req, res, next) => {
+    if (req.path.startsWith("/api/keuangan")) return next();
+    basicAuthMiddleware(ADMIN_USER, ADMIN_PASS, "Pengambilan Barang")(req, res, next);
   });
 } else {
   console.warn(
     "[WARNING] ADMIN_PASS belum di-set di .env -> web ini TIDAK dilindungi password. " +
     "Jangan dipakai untuk deploy publik seperti ini."
+  );
+}
+
+// Gate KHUSUS /api/keuangan/* -- realm-nya beda ("Keuangan"), jadi browser
+// munculin prompt login TERPISAH dari login admin biasa. Independen total
+// dari ADMIN_USER/PASS: siapa pun yang tahu FINANCE_USER/PASS bisa akses ini
+// (asal udah lolos login admin biasa buat muat halaman web-nya duluan).
+if (FINANCE_PASS) {
+  app.use("/api/keuangan", basicAuthMiddleware(FINANCE_USER, FINANCE_PASS, "Keuangan"));
+} else {
+  console.warn(
+    "[WARNING] FINANCE_PASS belum di-set di .env -> /api/keuangan/* TIDAK punya proteksi " +
+    "tambahan (cuma kepake password admin biasa)."
   );
 }
 
@@ -193,6 +223,96 @@ app.get("/api/payments", (req, res) => {
       waktu: r.waktu,
     }))
   );
+});
+
+function rowToExpense(row) {
+  return {
+    id: row.id,
+    tanggal: row.tanggal,
+    namaBahan: row.nama_bahan,
+    qty: row.qty,
+    satuan: row.satuan,
+    hargaSatuan: row.harga_satuan,
+    total: row.total,
+    catatan: row.catatan,
+    waktu: row.waktu,
+  };
+}
+
+app.get("/api/keuangan/summary", (req, res) => {
+  const totalPemasukan =
+    db.prepare(`SELECT COALESCE(SUM(jumlah_bayar), 0) s FROM items`).get().s || 0;
+  const totalRefundTransfer =
+    db
+      .prepare(
+        `SELECT COALESCE(SUM(refund_nominal), 0) s FROM items WHERE refund_eligible = 1 AND refund_sudah_transfer = 1`
+      )
+      .get().s || 0;
+  const totalRefundBelumTransfer =
+    db
+      .prepare(
+        `SELECT COALESCE(SUM(refund_nominal), 0) s FROM items WHERE refund_eligible = 1 AND refund_sudah_transfer = 0`
+      )
+      .get().s || 0;
+  const totalPengeluaran =
+    db.prepare(`SELECT COALESCE(SUM(total), 0) s FROM expenses`).get().s || 0;
+
+  const saldoKas = totalPemasukan - totalRefundTransfer - totalPengeluaran;
+  const saldoSetelahSemuaRefund = saldoKas - totalRefundBelumTransfer;
+
+  res.json({
+    totalPemasukan,
+    totalRefundTransfer,
+    totalRefundBelumTransfer,
+    totalPengeluaran,
+    saldoKas,
+    saldoSetelahSemuaRefund,
+  });
+});
+
+app.get("/api/keuangan/expenses", (req, res) => {
+  const rows = db.prepare(`SELECT * FROM expenses ORDER BY waktu DESC`).all();
+  res.json(rows.map(rowToExpense));
+});
+
+app.post("/api/keuangan/expenses", (req, res) => {
+  const tanggal = String(req.body.tanggal || "").trim();
+  const namaBahan = String(req.body.namaBahan || "").trim();
+  const qty = Math.round(Number(req.body.qty));
+  const satuan = String(req.body.satuan || "").trim();
+  const hargaSatuan = Math.round(Number(req.body.hargaSatuan) || 0);
+  const catatan = String(req.body.catatan || "").trim();
+  // Total SENGAJA boleh beda dari qty * hargaSatuan (niru sheet aslinya yang
+  // suka ada pembulatan/diskon pas checkout) -- kalau dikosongkan baru
+  // di-default ke qty * hargaSatuan.
+  const totalInput = req.body.total === "" || req.body.total === undefined ? null : Math.round(Number(req.body.total));
+
+  if (!tanggal) return res.status(400).json({ error: "Tanggal wajib diisi" });
+  if (!namaBahan) return res.status(400).json({ error: "Nama bahan wajib diisi" });
+  if (!Number.isFinite(qty) || qty <= 0) return res.status(400).json({ error: "Qty tidak valid" });
+  const total = totalInput !== null && Number.isFinite(totalInput) ? totalInput : qty * hargaSatuan;
+  if (!Number.isFinite(total) || total < 0)
+    return res.status(400).json({ error: "Total tidak valid" });
+
+  const waktu = new Date().toISOString();
+
+  const result = db
+    .prepare(
+      `INSERT INTO expenses (tanggal, nama_bahan, qty, satuan, harga_satuan, total, catatan, waktu)
+       VALUES (?, ?, ?, ?, ?, ?, ?, ?)`
+    )
+    .run(tanggal, namaBahan, qty, satuan, hargaSatuan, total, catatan, waktu);
+
+  const created = db.prepare(`SELECT * FROM expenses WHERE id = ?`).get(result.lastInsertRowid);
+  res.status(201).json(rowToExpense(created));
+});
+
+app.delete("/api/keuangan/expenses/:id", (req, res) => {
+  const id = Number(req.params.id);
+  const existing = db.prepare(`SELECT id FROM expenses WHERE id = ?`).get(id);
+  if (!existing) return res.status(404).json({ error: "Tidak ditemukan" });
+  db.prepare(`DELETE FROM expenses WHERE id = ?`).run(id);
+  res.status(204).end();
 });
 
 app.listen(PORT, () => {

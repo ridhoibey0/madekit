@@ -74,4 +74,24 @@ db.exec(`
   )
 `);
 
+// Pengeluaran (beli bahan dkk) buat modul Keuangan -- kolomnya sengaja niru
+// persis sheet "Pembelian Bahan" di Made Kit.xlsx (Tanggal, Nama Bahan, Qty,
+// Satuan, Harga Satuan, Total, Catatan). "total" TIDAK dipaksa = qty *
+// harga_satuan -- di data aslinya juga sering beda dikit (pembulatan/diskon
+// pas checkout), jadi total diinput manual sendiri, harga_satuan cuma buat
+// referensi harga per unit.
+db.exec(`
+  CREATE TABLE IF NOT EXISTS expenses (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    tanggal TEXT NOT NULL,
+    nama_bahan TEXT NOT NULL,
+    qty INTEGER NOT NULL DEFAULT 1,
+    satuan TEXT DEFAULT '',
+    harga_satuan INTEGER NOT NULL DEFAULT 0,
+    total INTEGER NOT NULL,
+    catatan TEXT DEFAULT '',
+    waktu TEXT NOT NULL DEFAULT (datetime('now'))
+  )
+`);
+
 module.exports = db;
